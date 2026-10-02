@@ -11,7 +11,7 @@ from ..log import get_logger
 from ..storage import load_json
 from .member_management import parse_birthday
 from .member_access import configure_operator_access
-from .server_config import configured_channel, configured_role, configured_roles
+from .server_config import configured_channel, configured_role, configured_roles, role_assignment_issue
 from .ui import hex_to_int, separator, text
 
 log = get_logger(__name__)
@@ -185,6 +185,12 @@ async def submit_application(interaction: discord.Interaction, fields_cfg: list[
     if candidate_role is None:
         return await interaction.followup.send(
             "O cargo de candidato não está configurado. Peça ao dono do servidor para revisar `/install`.",
+            ephemeral=True,
+        )
+    assignment_issue = role_assignment_issue(interaction.guild, candidate_role)
+    if assignment_issue:
+        return await interaction.followup.send(
+            f"Não consigo atribuir o cargo de candidato: {assignment_issue}. Avise a staff para corrigir no servidor.",
             ephemeral=True,
         )
     channel = await ensure_staff_channel(interaction.guild)

@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import discord
+from ..log import get_logger
 
-from .server_config import configured_channel, configured_role
+from .server_config import configured_channel, configured_role, role_assignment_issue
+
+log = get_logger(__name__)
 
 JOIN_CHANNEL_KEYS = (
     "channel.apply", "channel.warning", "channel.general", "channel.media",
@@ -36,10 +39,13 @@ def _is_leadership_only(entity: discord.abc.GuildChannel, leader_roles: list[dis
 
 async def configure_join_access(member: discord.Member) -> None:
     community = configured_role(member.guild, "role.community")
+    if community is None:
+        raise RuntimeError("cargo role.community não configurado ou ID inválido; confira /install")
+    issue = role_assignment_issue(member.guild, community)
+    if issue:
+        raise RuntimeError(f"não é possível atribuir o cargo community: {issue}")
     if community and community not in member.roles:
         await member.add_roles(community, reason="Entrada no servidor: cargo de comunidade")
-    if community is None:
-        return
     for key in JOIN_CHANNEL_KEYS:
         channel = configured_channel(member.guild, key)
         if channel is None:
@@ -47,7 +53,16 @@ async def configure_join_access(member: discord.Member) -> None:
         overwrite = channel.overwrites_for(community)
         overwrite.view_channel = True
         overwrite.send_messages = True
-        await channel.set_permissions(community, overwrite=overwrite, reason="Acesso de boas-vindas da comunidade")
+        try:
+            await channel.set_permissions(
+                community, overwrite=overwrite, reason="Acesso de boas-vindas da comunidade",
+            )
+        except discord.Forbidden:
+            log.warning(
+                "cargo community aplicado a %s, mas o Discord recusou a permissão no canal %s (%s); "
+                "confira Gerenciar Cargos/permissões de canal",
+                member.id, channel.name, channel.id,
+            )
 
 
 async def configure_operator_access(guild: discord.Guild, member: discord.Member) -> None:

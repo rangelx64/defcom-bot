@@ -15,6 +15,21 @@ def configured_role(guild: discord.Guild, key: str) -> discord.Role | None:
         return None
 
 
+def role_assignment_issue(guild: discord.Guild, role: discord.Role) -> str | None:
+    """Explain why Discord will reject assigning this role to a member."""
+    bot_member = guild.me
+    if bot_member is None:
+        return "não consegui localizar o membro do bot nesta guild"
+    if not bot_member.guild_permissions.manage_roles:
+        return "o bot não tem a permissão Gerenciar Cargos"
+    if not role.is_assignable():
+        return (
+            f"o cargo {role.mention} (ID {role.id}) está acima/igual ao cargo mais alto do bot, "
+            "ou é um cargo gerenciado e não pode ser atribuído por ele"
+        )
+    return None
+
+
 def configured_roles(guild: discord.Guild, key: str) -> list[discord.Role]:
     value = database.get_guild_config(guild.id, key, [])
     if not isinstance(value, list):

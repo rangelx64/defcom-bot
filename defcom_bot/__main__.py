@@ -154,6 +154,14 @@ class DefcomBot(commands.Bot):
         try:
             await configure_join_access(member)
             log.info("fluxo de entrada configurado para %s", member.name)
+        except RuntimeError as error:
+            log.error("cargo community não aplicado a %s: %s", member.name, error)
+        except discord.Forbidden:
+            log.error(
+                "Discord recusou a atribuição de community para %s; confira Gerenciar Cargos "
+                "e se o cargo community está abaixo do cargo mais alto do bot",
+                member.name,
+            )
         except discord.HTTPException as error:
             log.warning("falha ao configurar acesso de entrada para %s: %s", member.name, error)
 
