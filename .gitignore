@@ -1,0 +1,12 @@
+.env
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+state/defcom.sqlite3*
+state/published.json
+*.log
+.DS_Store
