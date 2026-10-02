@@ -7,6 +7,7 @@ from discord.ext import commands
 from ..config import settings
 from .channels import (create_category, create_channel, delete_category, delete_channel,
                        find_category, find_channel, move_channel, rename_channel)
+from .aph_guide import build_aph_guide_view
 from .interactions import publish_pages
 from .install import InstallView, install_embed
 from .map_service import map_guild, map_summary
@@ -122,6 +123,20 @@ class Management(commands.Cog):
         await publish_pages(interaction.guild, welcome=False, apply=True)
         channel = configured_channel(interaction.guild, "channel.apply")
         await interaction.followup.send(f"✅ Página de candidatura publicada e fixada em {channel.mention}. Canal privado da staff configurado.", ephemeral=True)
+
+    @app_commands.command(name="publicar-guia-aph", description="Publica o guia de APH do ACE Medical no canal configurado.")
+    @MANAGE
+    @app_commands.guild_only()
+    async def publicar_guia_aph(self, interaction: discord.Interaction):
+        await _defer(interaction)
+        channel = configured_channel(interaction.guild, "channel.aph")
+        if not isinstance(channel, (discord.TextChannel, discord.Thread)):
+            return await interaction.followup.send(
+                "❌ Canal de APH não configurado. O dono do servidor deve selecioná-lo no `/install`.",
+                ephemeral=True,
+            )
+        await channel.send(view=build_aph_guide_view())
+        await interaction.followup.send(f"✅ Guia de APH publicado em {channel.mention}.", ephemeral=True)
 
     @app_commands.command(name="configurar-onboarding", description="Configura o Onboarding nativo (preview + confirmação).")
     @MANAGE

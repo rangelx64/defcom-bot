@@ -30,6 +30,7 @@ CHANNEL_FIELDS = {
     "channel.warning": "Canal de avisos e regras",
     "channel.arts": "Canal de artes",
     "channel.announcements": "Canal de comunicados",
+    "channel.aph": "Canal de guia rápido de combate / APH",
 }
 
 

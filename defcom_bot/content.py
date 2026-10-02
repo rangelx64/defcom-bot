@@ -106,6 +106,89 @@ APPLICATION = {
     ],
 }
 
+APH_GUIDE = {
+    "title": "Guia rápido de APH | ACE Medical",
+    "description": (
+        "Procedimento de referência para o sistema médico ACE usado pela equipe. "
+        "Priorize a segurança da área, comunique o estado do paciente e siga a ordem de estabilização."
+    ),
+    "sections": [
+        {
+            "name": "1. Segurança e avaliação",
+            "value": (
+                "• Antes de tratar, procure cobertura e confirme que a área está segura.\n"
+                "• Informe pelo rádio a posição, quantidade de feridos e quem está atendendo.\n"
+                "• Verifique sangramento, respiração, batimentos, SpO₂, pressão e vias aéreas.\n"
+                "• Se houver mais de um ferido, priorize quem precisa de intervenção imediata."
+            ),
+        },
+        {
+            "name": "2. Sangramento e volume sanguíneo",
+            "value": (
+                "• Estanque todos os sangramentos primeiro; confira novamente após cada tratamento.\n"
+                "• O objetivo deste procedimento é deixar a hemorragia em Classe 1.\n"
+                "• Se continuar acima de Classe 1, administre salina e reavalie os sinais vitais.\n"
+                "• Não considere o paciente estabilizado só porque o sangramento visível parou."
+            ),
+        },
+        {
+            "name": "3. Respiração, vias aéreas e SpO₂",
+            "value": (
+                "• SpO₂ abaixo de 80% pode atrasar a recuperação do paciente.\n"
+                "• Durante a RCP, acompanhe a SpO₂ e busque chegar a 90%.\n"
+                "• Parada respiratória: tente **Lift Chin**. Se não resolver, use tubo e máscara de O₂.\n"
+                "• Verifique e remova vômito/obstruções quando a interação do mod permitir.\n"
+                "• Reavalie a respiração depois de cada intervenção."
+            ),
+        },
+        {
+            "name": "4. Parada cardiorrespiratória",
+            "value": (
+                "1. Administre epinefrina conforme o procedimento do servidor.\n"
+                "2. Coloque a máscara de O₂ e mantenha as vias aéreas livres.\n"
+                "3. Faça RCP e acompanhe a SpO₂ até alcançar aproximadamente 90%.\n"
+                "4. Quando respiração e batimentos voltarem, não pare: continue estabilizando e monitorando."
+            ),
+        },
+        {
+            "name": "5. Pressão e medicação",
+            "value": (
+                "• Pressão alta: administre morfina e aguarde a pressão estabilizar.\n"
+                "• Depois da estabilização, use amônia conforme o fluxo ensinado no servidor.\n"
+                "• Evite repetir medicações sem reavaliar o paciente; confira sinais vitais após cada etapa."
+            ),
+        },
+        {
+            "name": "6. Checklist antes de levantar",
+            "value": (
+                "Confirme todos os pontos:\n"
+                "• Hemorragia em Classe 1;\n"
+                "• Respiração e batimentos funcionando;\n"
+                "• SpO₂ adequada;\n"
+                "• Pressão normalizada;\n"
+                "• Vias aéreas livres.\n\n"
+                "Após levantar, observe se o quadro piora e mantenha o rádio informado."
+            ),
+        },
+        {
+            "name": "Dicas de equipe",
+            "value": (
+                "• Um integrante atende; outro faz segurança e comunica a situação.\n"
+                "• Peça kit, maca ou evacuação cedo quando necessário.\n"
+                "• Diga em voz alta o que já foi tratado para evitar medicação duplicada.\n"
+                "• Não abandone cobertura para tratar sob fogo; mova o ferido para uma posição segura quando possível."
+            ),
+        },
+        {
+            "name": "Para decorar",
+            "value": "**Sangue → Classe 1 → SpO₂ → Parada? Tratar → Pressão → Amônia → Reavaliar → Levantar**",
+        },
+    ],
+    "footer": (
+        "Guia para o ACE Medical no Arma Reforger; itens, nomes e limiares podem variar conforme a versão/configuração do mod."
+    ),
+}
+
 ONBOARDING = {
     "enabled": True,
     "mode": "advanced",
