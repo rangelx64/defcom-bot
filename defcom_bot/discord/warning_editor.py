@@ -8,6 +8,7 @@ import discord
 from discord import ui
 
 from ..log import get_logger
+from .presentation import card, result
 
 log = get_logger(__name__)
 
@@ -27,6 +28,7 @@ def _build_embed(draft: WarningDraft, author_name: str) -> discord.Embed:
         description=draft.description,
         color=discord.Color(draft.color),
     )
+    embed.set_author(name="DEFCOM | Avisos e comunicados")
     if draft.image_url:
         embed.set_image(url=draft.image_url)
     footer = f"Autor: {author_name[:256]}"
@@ -73,18 +75,18 @@ class WarningEmbedModal(ui.Modal, title="Editar prévia do aviso"):
 
     async def on_submit(self, interaction: discord.Interaction):
         if interaction.user.id != self.owner_id:
-            return await interaction.response.send_message("Somente o autor da mensagem pode editar esta prévia.", ephemeral=True)
+            return await interaction.response.send_message(embed=card("Edição restrita", "Somente o autor da mensagem original pode editar esta prévia.", tone="error"), ephemeral=True)
 
         raw_color = self.color_hex.value.strip().removeprefix("#")
         if len(raw_color) != 6:
             return await interaction.response.send_message(
-                "Informe a cor no formato hexadecimal de seis caracteres, como `#5865F2`.", ephemeral=True,
+                embed=card("Cor inválida", "Informe a cor no formato hexadecimal de seis caracteres, como `#5865F2`.", tone="warning"), ephemeral=True,
             )
         try:
             color = int(raw_color, 16)
         except ValueError:
             return await interaction.response.send_message(
-                "A cor deve conter somente números e letras de A a F, como `#5865F2`.", ephemeral=True,
+                embed=card("Cor inválida", "Use apenas números e letras de A a F, como `#5865F2`.", tone="warning"), ephemeral=True,
             )
 
         image = self.image_url.value.strip()
@@ -92,7 +94,7 @@ class WarningEmbedModal(ui.Modal, title="Editar prévia do aviso"):
             parsed = urlparse(image)
             if parsed.scheme not in {"http", "https"} or not parsed.netloc:
                 return await interaction.response.send_message(
-                    "A imagem precisa ser um link válido começando com `https://` ou `http://`.",
+                    embed=card("Link de imagem inválido", "Use um endereço válido começando com `https://` ou `http://`.", tone="warning"),
                     ephemeral=True,
                 )
 
@@ -104,12 +106,12 @@ class WarningEmbedModal(ui.Modal, title="Editar prévia do aviso"):
             extra_footer=self.footer.value.strip(),
         )
         if not draft.title or not draft.description:
-            return await interaction.response.send_message("Título e descrição não podem ficar vazios.", ephemeral=True)
+            return await interaction.response.send_message(embed=card("Preencha o aviso", "Título e descrição não podem ficar vazios.", tone="warning"), ephemeral=True)
 
         await interaction.response.defer(ephemeral=True, thinking=True)
         try:
             await self.editor_message.edit(
-                content="Prévia do aviso. Somente o autor original pode editar ou publicar.",
+                content=None,
                 embed=_build_embed(draft, self.author_name),
                 view=WarningEmbedView(
                     owner_id=self.owner_id,
@@ -121,8 +123,8 @@ class WarningEmbedModal(ui.Modal, title="Editar prévia do aviso"):
             )
         except discord.HTTPException as error:
             log.warning("falha ao atualizar prévia do aviso (status %s)", error.status)
-            return await interaction.followup.send("Não foi possível atualizar a prévia. Tente novamente.", ephemeral=True)
-        await interaction.followup.send("Prévia atualizada no canal. Você pode revisar, editar novamente ou publicar.", ephemeral=True)
+            return await interaction.followup.send(embed=card("Prévia não atualizada", "Não foi possível atualizar a prévia. Tente novamente.", tone="error"), ephemeral=True)
+        await interaction.followup.send(embed=result("Prévia atualizada", "Revise o aviso, edite novamente se precisar ou publique quando estiver pronto."), ephemeral=True)
 
 
 class WarningEmbedView(ui.View):
@@ -137,7 +139,7 @@ class WarningEmbedView(ui.View):
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id != self.owner_id:
             await interaction.response.send_message(
-                "Somente o autor da mensagem original pode usar este editor.", ephemeral=True,
+                embed=card("Edição restrita", "Somente o autor da mensagem original pode usar este editor.", tone="error"), ephemeral=True,
             )
             return False
         return True
@@ -145,7 +147,7 @@ class WarningEmbedView(ui.View):
     @ui.button(label="Editar prévia", style=discord.ButtonStyle.primary)
     async def edit_preview(self, interaction: discord.Interaction, button: ui.Button):
         if interaction.message is None:
-            return await interaction.response.send_message("Não encontrei a mensagem da prévia.", ephemeral=True)
+            return await interaction.response.send_message(embed=card("Prévia indisponível", "Não encontrei a mensagem da prévia. Abra o editor novamente.", tone="error"), ephemeral=True)
         await interaction.response.send_modal(WarningEmbedModal(
             owner_id=self.owner_id,
             author_name=self.author_name,
@@ -158,7 +160,7 @@ class WarningEmbedView(ui.View):
     async def publish(self, interaction: discord.Interaction, button: ui.Button):
         if self.draft is None:
             return await interaction.response.send_message(
-                "Edite a prévia e preencha o título e a descrição antes de publicar.", ephemeral=True,
+                embed=card("Aviso incompleto", "Edite a prévia e preencha o título e a descrição antes de publicar.", tone="warning"), ephemeral=True,
             )
         await interaction.response.defer(ephemeral=True, thinking=True)
         try:
@@ -168,13 +170,14 @@ class WarningEmbedView(ui.View):
             )
         except discord.HTTPException as error:
             log.warning("falha ao publicar embed de aviso (status %s)", error.status)
-            return await interaction.followup.send("Não foi possível publicar o aviso. Tente novamente.", ephemeral=True)
+            return await interaction.followup.send(embed=card("Aviso não publicado", "Não foi possível publicar o aviso. Tente novamente.", tone="error"), ephemeral=True)
 
         ping_message = None
         ping_error = None
         try:
             ping_message = await self.target_channel.send(
                 "@everyone",
+                embed=card("Novo aviso", "A equipe publicou um comunicado no canal.", tone="warning"),
                 allowed_mentions=discord.AllowedMentions(everyone=True, users=False, roles=False),
             )
             await asyncio.sleep(3)
@@ -195,7 +198,7 @@ class WarningEmbedView(ui.View):
             status += " O tópico do editor será apagado."
 
         # Confirme a ação antes de remover a thread que originou a interação.
-        await interaction.edit_original_response(content=status)
+        await interaction.edit_original_response(content=None, embed=card("Aviso publicado", status, tone="success" if not ping_error else "warning"))
         if editor_thread:
             try:
                 await interaction.channel.delete(reason="Aviso publicado; encerrar tópico privado do editor")
@@ -203,13 +206,14 @@ class WarningEmbedView(ui.View):
                 log.warning("aviso publicado, mas não foi possível apagar o tópico do editor (status %s)", error.status)
                 try:
                     await interaction.edit_original_response(
-                        content=f"{status} Não consegui apagar o tópico; confira a permissão Manage Threads."
+                        content=None,
+                        embed=card("Aviso publicado com pendência", f"{status}\n\nNão consegui apagar o tópico; confira a permissão Gerenciar Tópicos.", tone="warning"),
                     )
                 except discord.HTTPException:
                     log.warning("não foi possível atualizar a confirmação após falha ao apagar o tópico")
         elif interaction.message:
             await interaction.message.edit(
-                content=f"Aviso publicado em {self.target_channel.mention}.", view=None,
+                content=None, embed=result("Aviso publicado", f"O aviso foi publicado em {self.target_channel.mention}."), view=None,
             )
 
 
@@ -223,16 +227,17 @@ async def send_warning_editor(message: discord.Message) -> None:
         invitable=False,
         reason="Criar editor privado para aviso",
     )
-    preview = discord.Embed(
-        title="Prévia do aviso",
-        description="Esta prévia é privada. Use **Editar prévia** para definir título, descrição, imagem e cor. O embed só aparecerá no canal warning depois de clicar em **Publicar**.",
-        color=discord.Color.blurple(),
+    preview = card(
+        "Editor de avisos",
+        "Esta prévia é privada. Use **Editar prévia** para definir título, descrição, imagem e cor. O aviso só aparecerá no canal após clicar em **Publicar**.",
+        tone="brand",
+        footer="DEFCOM • Prévia privada; somente o autor original pode publicar",
     )
     preview.set_footer(text=f"Autor: {author_name}")
     try:
         await thread.add_user(message.author)
         await thread.send(
-            content="Editor privado do aviso. Somente o autor original pode editar ou publicar.",
+            content=None,
             embed=preview,
             view=WarningEmbedView(
                 owner_id=message.author.id,

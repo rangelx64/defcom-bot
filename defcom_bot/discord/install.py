@@ -4,6 +4,7 @@ import discord
 from discord import ui
 
 from ..database import database
+from .presentation import card
 
 ROLE_FIELDS = {
     "role.global_leader": "Cargo de líder global",
@@ -47,25 +48,27 @@ def _config_label(guild: discord.Guild, key: str, label: str) -> str:
     return f"{label}: {', '.join(mentions) if mentions else 'não configurado'}"
 
 
-def install_embed(guild: discord.Guild) -> discord.Embed:
+def install_embed(guild: discord.Guild, notice: str | None = None) -> discord.Embed:
     missing = [key for key in (*ROLE_FIELDS, *CHANNEL_FIELDS)
                if database.get_guild_config(guild.id, key) is None]
-    embed = discord.Embed(
+    description = (
+        "Associe cada função ao cargo ou canal existente. Os IDs são salvos por servidor. "
+        "O dono do servidor é reconhecido pelo Discord e não precisa de cargo. "
+        f"Configuração preenchida: {len(ROLE_FIELDS) + len(CHANNEL_FIELDS) - len(missing)}/"
+        f"{len(ROLE_FIELDS) + len(CHANNEL_FIELDS)} seleções."
+    )
+    if notice:
+        description = f"**{notice}**\n\n{description}"
+    embed = card(
         title="Configuração inicial do bot",
-        description=(
-            "Selecione cada função e associe o cargo ou canal correspondente. "
-            "Os IDs são gravados no SQLite. O dono do servidor é reconhecido "
-            "pelo próprio Discord e não precisa de cargo. "
-            f"Configuração preenchida: {len(ROLE_FIELDS) + len(CHANNEL_FIELDS) - len(missing)}/"
-            f"{len(ROLE_FIELDS) + len(CHANNEL_FIELDS)} seleções."
-        ),
-        color=discord.Color.blurple(),
+        description=description,
+        tone="brand",
+        footer="Somente o dono do servidor pode configurar ou alterar estes IDs.",
     )
     roles = "\n".join(_config_label(guild, key, label) for key, label in ROLE_FIELDS.items())
     channels = "\n".join(_config_label(guild, key, label) for key, label in CHANNEL_FIELDS.items())
     embed.add_field(name="Cargos", value=roles[:1024], inline=False)
     embed.add_field(name="Canais", value=channels[:1024], inline=False)
-    embed.set_footer(text="Somente o dono do servidor pode configurar ou alterar estes IDs.")
     return embed
 
 
@@ -78,7 +81,7 @@ class InstallView(ui.View):
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id != self.owner_id or interaction.user.id != interaction.guild.owner_id:
             await interaction.response.send_message(
-                "Somente o dono do servidor pode usar esta configuração.", ephemeral=True,
+                embed=card("Acesso restrito", "Somente o dono do servidor pode usar esta configuração.", tone="error"), ephemeral=True,
             )
             return False
         return True
@@ -99,8 +102,8 @@ class InstallFieldSelect(ui.Select):
         key = self.values[0]
         label = ROLE_FIELDS.get(key) or CHANNEL_FIELDS[key]
         await interaction.response.edit_message(
-            content=f"Selecione o item para **{label}**.",
-            embed=None,
+            content=None,
+            embed=card("Configuração de cargo ou canal", f"Selecione o item correspondente a **{label}**."),
             view=InstallEntityView(self.view.owner_id, key),
         )
 
@@ -121,7 +124,7 @@ class InstallEntityView(ui.View):
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id != self.owner_id or interaction.user.id != interaction.guild.owner_id:
             await interaction.response.send_message(
-                "Somente o dono do servidor pode usar esta configuração.", ephemeral=True,
+                embed=card("Acesso restrito", "Somente o dono do servidor pode usar esta configuração.", tone="error"), ephemeral=True,
             )
             return False
         return True
@@ -135,13 +138,13 @@ class RoleValueSelect(ui.RoleSelect):
     async def callback(self, interaction: discord.Interaction):
         if any(role.is_default() or role.managed for role in self.values):
             return await interaction.response.send_message(
-                "Não use @everyone nem cargos gerenciados por integração nesta configuração.", ephemeral=True,
+                embed=card("Cargo não permitido", "Selecione um cargo normal do servidor. `@everyone` e cargos gerenciados por integrações não podem ser configurados.", tone="error"), ephemeral=True,
             )
         role_ids = [str(role.id) for role in self.values]
         value = role_ids if self.key == "staff_roles" else role_ids[0]
         database.set_guild_config(interaction.guild_id, self.key, value)
         await interaction.response.edit_message(
-            content="Cargo salvo no SQLite.", embed=install_embed(interaction.guild),
+            content=None, embed=install_embed(interaction.guild, notice="Cargo salvo com sucesso."),
             view=InstallView(interaction.user.id),
         )
 
@@ -157,7 +160,7 @@ class ChannelValueSelect(ui.ChannelSelect):
         channel = self.values[0]
         database.set_guild_config(interaction.guild_id, self.key, str(channel.id))
         await interaction.response.edit_message(
-            content="Canal salvo no SQLite.", embed=install_embed(interaction.guild),
+            content=None, embed=install_embed(interaction.guild, notice="Canal salvo com sucesso."),
             view=InstallView(interaction.user.id),
         )
 
@@ -170,7 +173,7 @@ class ClearValueButton(ui.Button):
         view: InstallEntityView = self.view
         database.delete_guild_config(interaction.guild_id, view.key)
         await interaction.response.edit_message(
-            content="Configuração removida do SQLite.", embed=install_embed(interaction.guild),
+            content=None, embed=install_embed(interaction.guild, notice="Associação removida."),
             view=InstallView(interaction.user.id),
         )
 

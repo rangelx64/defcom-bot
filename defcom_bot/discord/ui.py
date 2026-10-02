@@ -6,6 +6,7 @@ from discord import ui
 
 from .channels import find_channel
 from .names import normalize_name
+from .presentation import card, confirmation, result
 
 
 def hex_to_int(value: str | None, fallback: int = 0x2B2D31) -> int:
@@ -41,14 +42,15 @@ def resolve_mentions(guild: discord.Guild, content: str) -> str:
 
 
 class ConfirmationView(ui.View):
-    def __init__(self, owner_id: int, timeout: float = 60):
+    def __init__(self, owner_id: int, summary: str, timeout: float = 60):
         super().__init__(timeout=timeout)
         self.owner_id = owner_id
+        self.summary = summary
         self.confirmed = False
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id != self.owner_id:
-            await interaction.response.send_message("Somente quem iniciou a ação pode confirmar.", ephemeral=True)
+            await interaction.response.send_message(embed=card("Ação restrita", "Somente quem iniciou esta confirmação pode usá-la.", tone="error"), ephemeral=True)
             return False
         return True
 
@@ -56,23 +58,23 @@ class ConfirmationView(ui.View):
     async def confirm(self, interaction: discord.Interaction, button: ui.Button):
         self.confirmed = True
         self.stop()
-        await interaction.response.edit_message(content=f"{interaction.message.content}\n\n✅ Confirmado.", view=None)
+        await interaction.response.edit_message(content=None, embed=result("Ação confirmada", self.summary), view=None)
 
     @ui.button(label="Cancelar", style=discord.ButtonStyle.secondary, custom_id="confirm:no")
     async def cancel(self, interaction: discord.Interaction, button: ui.Button):
         self.confirmed = False
         self.stop()
-        await interaction.response.edit_message(content=f"{interaction.message.content}\n\n❌ Cancelado.", view=None)
+        await interaction.response.edit_message(content=None, embed=card("Ação cancelada", self.summary, tone="warning"), view=None)
 
 
 async def confirm_action(interaction: discord.Interaction, *, title: str, description: str = "",
                          confirm_label: str = "Confirmar", timeout: float = 60) -> bool:
-    view = ConfirmationView(interaction.user.id, timeout)
+    view = ConfirmationView(interaction.user.id, title, timeout)
     next(item for item in view.children if isinstance(item, ui.Button) and item.custom_id == "confirm:yes").label = confirm_label
-    message = f"**{title}**\n{description}" if description else f"**{title}**"
-    confirmation_message = await interaction.followup.send(message, view=view, ephemeral=True, wait=True)
+    message = f"{title}\n{description}" if description else title
+    confirmation_message = await interaction.followup.send(embed=confirmation(title, description), view=view, ephemeral=True, wait=True)
     timed_out = await view.wait()
     if timed_out:
-        await confirmation_message.edit(content=f"{message}\n\n⌛ Tempo esgotado. Ação cancelada.", view=None)
+        await confirmation_message.edit(content=None, embed=card("Confirmação expirada", f"{message}\n\nNenhuma alteração foi feita.", tone="warning"), view=None)
         return False
     return view.confirmed

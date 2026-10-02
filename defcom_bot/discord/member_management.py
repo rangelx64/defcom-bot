@@ -11,6 +11,7 @@ from discord import ui
 from ..content import MEMBER_RANKS, PLATOONS
 from ..database import ApplicationDatabase, database
 from ..models import MemberRecord
+from .presentation import card, result
 from .server_config import configured_role
 
 RANK_LABELS = {
@@ -78,12 +79,13 @@ def roster_embed(guild: discord.Guild, scope: MemberScope,
     members = repository.list_members(guild.id)
     if not scope.global_access:
         members = [member for member in members if can_manage(scope, member)]
-    embed = discord.Embed(
+    embed = card(
         title="Gerenciamento de membros",
-        description=("Cadastro interno salvo em SQLite. As ações deste menu não expulsam membros "
+        description=("Cadastro interno salvo no banco do bot. As ações deste menu não expulsam membros "
                     "nem alteram cargos do Discord. " +
                     ("Acesso global." if scope.global_access else f"Escopo: pelotão {scope.platoon.title()}.")),
-        color=discord.Color.blurple(),
+        tone="brand",
+        footer="A data de aniversário fica visível apenas nos fluxos privados da staff.",
     )
     counts = Counter(member.platoon or "Sem pelotão" for member in members)
     platoons = " · ".join(f"{name.title()}: {count}" for name, count in sorted(counts.items())) or "Nenhum membro cadastrado"
@@ -99,7 +101,6 @@ def roster_embed(guild: discord.Guild, scope: MemberScope,
         embed.add_field(name="Cadastro", value="\n".join(lines), inline=False)
     else:
         embed.add_field(name="Cadastro", value="Ainda não há membros cadastrados.", inline=False)
-    embed.set_footer(text="A data de aniversário fica visível apenas nos fluxos privados da staff.")
     return embed
 
 
@@ -110,7 +111,7 @@ class MemberManagementView(ui.View):
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id != self.owner_id or actor_scope(interaction) is None:
-            await interaction.response.send_message("Este menu é privado para quem o abriu e exige cargo e escopo de liderança válidos.", ephemeral=True)
+            await interaction.response.send_message(embed=card("Acesso restrito", "Este menu é privado para quem o abriu e exige cargo e escopo de liderança válidos.", tone="error"), ephemeral=True)
             return False
         return True
 
@@ -122,7 +123,7 @@ class MemberManagementView(ui.View):
             "move": "Escolha o membro que deseja mover de pelotão.",
         }
         await interaction.response.send_message(
-            prompts[action], ephemeral=True,
+            embed=card("Selecione um membro", prompts[action]), ephemeral=True,
             view=MemberPickerView(self.owner_id, action),
         )
 
@@ -151,7 +152,7 @@ class MemberPickerView(ui.View):
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id != self.owner_id or actor_scope(interaction) is None:
-            await interaction.response.send_message("Este seletor pertence a outra interação ou seu escopo de liderança não é válido.", ephemeral=True)
+            await interaction.response.send_message(embed=card("Seletor indisponível", "Este menu pertence a outra interação ou seu escopo de liderança não é válido.", tone="error"), ephemeral=True)
             return False
         return True
 
@@ -160,26 +161,26 @@ class MemberPickerView(ui.View):
         member: discord.Member = select.values[0]
         scope = actor_scope(interaction)
         if scope is None:
-            return await interaction.response.send_message("Seu escopo de liderança não é válido.", ephemeral=True)
+            return await interaction.response.send_message(embed=card("Acesso expirado", "Seu escopo de liderança não é válido. Abra o menu novamente.", tone="error"), ephemeral=True)
         if member.bot and self.action == "add":
-            return await interaction.response.send_message("Contas de bot não podem ser adicionadas ao cadastro de membros.", ephemeral=True)
+            return await interaction.response.send_message(embed=card("Cadastro não permitido", "Contas de bot não podem ser adicionadas ao cadastro de membros.", tone="warning"), ephemeral=True)
         if member.id == interaction.user.id and self.action != "add":
-            return await interaction.response.send_message("Você não pode remover, promover ou mover o próprio cadastro por este menu.", ephemeral=True)
+            return await interaction.response.send_message(embed=card("Ação não permitida", "Você não pode remover, promover ou mover o próprio cadastro por este menu.", tone="warning"), ephemeral=True)
         record = database.get_member(interaction.guild_id, member.id)
         if self.action == "add":
             if record:
-                return await interaction.response.send_message(f"{member.mention} já está no cadastro.", ephemeral=True)
+                return await interaction.response.send_message(embed=card("Membro já cadastrado", f"{member.mention} já consta no cadastro interno."), ephemeral=True)
             return await interaction.response.send_modal(AddMemberModal(
                 member, initial_platoon=scope.platoon, actor_id=interaction.user.id,
             ))
         if record is None:
-            return await interaction.response.send_message(f"{member.mention} ainda não está no cadastro SQLite.", ephemeral=True)
+            return await interaction.response.send_message(embed=card("Cadastro não encontrado", f"{member.mention} ainda não está no cadastro interno."), ephemeral=True)
         if not can_manage(scope, record):
-            return await interaction.response.send_message("Você só pode administrar membros cadastrados no seu próprio pelotão.", ephemeral=True)
+            return await interaction.response.send_message(embed=card("Fora do seu escopo", "Você só pode administrar membros cadastrados no seu próprio pelotão.", tone="error"), ephemeral=True)
         if self.action == "remove":
-            embed = discord.Embed(title="Confirmar remoção do cadastro",
+            embed = card(title="Confirmar remoção do cadastro",
                 description=f"Remover {member.mention} do cadastro interno? A conta não será expulsa do servidor.",
-                color=discord.Color.red())
+                tone="warning", footer="A confirmação não remove cargos nem expulsa o membro.")
             return await interaction.response.send_message(embed=embed,
                 view=MemberConfirmationView(self.owner_id, "remove", member.id), ephemeral=True)
         if self.action == "promote":
@@ -189,16 +190,16 @@ class MemberPickerView(ui.View):
                     next_rank_index = len(MEMBER_RANKS)
                 next_rank = MEMBER_RANKS[next_rank_index]
             except (ValueError, IndexError):
-                return await interaction.response.send_message(f"{member.mention} já está no nível máximo ({rank_label(record.rank)}).", ephemeral=True)
-            embed = discord.Embed(title="Confirmar promoção",
+                return await interaction.response.send_message(embed=card("Nível máximo", f"{member.mention} já está no nível máximo: **{rank_label(record.rank)}**.", tone="warning"), ephemeral=True)
+            embed = card(title="Confirmar promoção",
                 description=f"Promover {member.mention}: **{rank_label(record.rank)} → {rank_label(next_rank)}**?\n\nA mudança será registrada no cadastro SQLite.",
-                color=discord.Color.gold())
+                tone="warning", footer="Confirme somente se a promoção estiver autorizada.")
             return await interaction.response.send_message(embed=embed,
                 view=MemberConfirmationView(self.owner_id, "promote", member.id), ephemeral=True)
         if self.action == "move":
             platoons = _platoon_names(interaction.guild)
             return await interaction.response.send_message(
-                f"Pelotão atual de {member.mention}: **{record.platoon.title() if record.platoon else 'nenhum'}**. Escolha o destino.",
+                embed=card("Mover de pelotão", f"Pelotão atual de {member.mention}: **{record.platoon.title() if record.platoon else 'nenhum'}**.\n\nEscolha o novo destino."),
                 view=PlatoonSelectView(self.owner_id, member.id, platoons), ephemeral=True)
 
 
@@ -216,19 +217,21 @@ class AddMemberModal(ui.Modal, title="Adicionar membro ao cadastro"):
     async def on_submit(self, interaction: discord.Interaction):
         scope = actor_scope(interaction)
         if interaction.user.id != self.actor_id or scope is None:
-            return await interaction.response.send_message("Seu acesso ao cadastro foi revogado ou expirou.", ephemeral=True)
+            return await interaction.response.send_message(embed=card("Acesso expirado", "Seu acesso ao cadastro foi revogado ou expirou.", tone="error"), ephemeral=True)
         if not scope.global_access and scope.platoon != self.initial_platoon:
-            return await interaction.response.send_message("Seu pelotão mudou; abra o menu novamente.", ephemeral=True)
+            return await interaction.response.send_message(embed=card("Menu desatualizado", "Seu pelotão mudou. Abra o menu novamente.", tone="warning"), ephemeral=True)
         raw = self.birthday.value.strip()
         normalized = parse_birthday(raw) if raw else None
         if raw and not normalized:
-            return await interaction.response.send_message("Data inválida. Informe o aniversário no formato DD/MM, por exemplo 17/04.", ephemeral=True)
+            return await interaction.response.send_message(embed=card("Data inválida", "Informe o aniversário no formato **DD/MM**, por exemplo `17/04`.", tone="error"), ephemeral=True)
         added = database.add_member(guild_id=interaction.guild_id, user_id=self.member_id,
             username=self.username, display_name=self.display_name, birthday=normalized)
         if added and self.initial_platoon:
             database.set_platoon(interaction.guild_id, self.member_id, self.initial_platoon)
-        message = "✅ Membro adicionado ao cadastro SQLite." if added else "ℹ️ Esse membro já está cadastrado."
-        await interaction.response.send_message(message, ephemeral=True)
+        await interaction.response.send_message(
+            embed=result("Membro cadastrado", "O membro foi adicionado ao cadastro interno.") if added else card("Membro já cadastrado", "Esse membro já consta no cadastro interno."),
+            ephemeral=True,
+        )
 
 
 class MemberConfirmationView(ui.View):
@@ -244,22 +247,24 @@ class MemberConfirmationView(ui.View):
         allowed = (interaction.user.id == self.owner_id and scope is not None and
                    (target is None or can_manage(scope, target)))
         if not allowed:
-            await interaction.response.send_message("Este menu exige liderança válida e o membro deve estar no seu escopo.", ephemeral=True)
+            await interaction.response.send_message(embed=card("Ação não autorizada", "Este menu exige liderança válida e o membro deve estar no seu escopo.", tone="error"), ephemeral=True)
         return allowed
 
     @ui.button(label="Confirmar", style=discord.ButtonStyle.danger)
     async def confirm(self, interaction: discord.Interaction, button: ui.Button):
         if self.action == "remove":
             success = database.remove_member(interaction.guild_id, self.member_id)
-            result = "✅ Cadastro removido." if success else "ℹ️ O cadastro já não existe."
+            result_text = "O cadastro foi removido. A conta permanece no servidor." if success else "O cadastro já não existe."
+            title = "Cadastro removido" if success else "Cadastro não encontrado"
         else:
             updated = database.promote_member(interaction.guild_id, self.member_id)
-            result = f"✅ Promoção registrada: **{rank_label(updated.rank)}**." if updated else "Cadastro não encontrado."
-        await interaction.response.edit_message(content=result, embed=None, view=None)
+            result_text = f"Promoção registrada: **{rank_label(updated.rank)}**." if updated else "O cadastro não foi encontrado."
+            title = "Promoção registrada" if updated else "Cadastro não encontrado"
+        await interaction.response.edit_message(content=None, embed=result(title, result_text, success=title != "Cadastro não encontrado"), view=None)
 
     @ui.button(label="Cancelar", style=discord.ButtonStyle.secondary)
     async def cancel(self, interaction: discord.Interaction, button: ui.Button):
-        await interaction.response.edit_message(content="Ação cancelada.", embed=None, view=None)
+        await interaction.response.edit_message(content=None, embed=card("Ação cancelada", "Nenhuma alteração foi feita.", tone="warning"), view=None)
 
 
 class PlatoonSelectView(ui.View):
@@ -276,7 +281,7 @@ class PlatoonSelectView(ui.View):
         target = database.get_member(interaction.guild_id, self.member_id)
         allowed = interaction.user.id == self.owner_id and scope is not None and target is not None and can_manage(scope, target)
         if not allowed:
-            await interaction.response.send_message("O membro não está mais no seu escopo de administração.", ephemeral=True)
+            await interaction.response.send_message(embed=card("Fora do seu escopo", "O membro não está mais no seu escopo de administração.", tone="error"), ephemeral=True)
         return allowed
 
 
@@ -290,11 +295,13 @@ class PlatoonSelect(ui.Select):
         platoon = None if value == "__none__" else value
         updated = database.set_platoon(interaction.guild_id, view.member_id, platoon)
         if updated is None:
-            result = "Cadastro não encontrado."
+            result_text = "O cadastro não foi encontrado."
+            success = False
         else:
             label = f"Pelotão {platoon.title()}" if platoon else "sem pelotão"
-            result = f"✅ Movimentação registrada: <@{view.member_id}> agora está em **{label}**."
-        await interaction.response.edit_message(content=result, view=None)
+            result_text = f"<@{view.member_id}> agora está em **{label}**."
+            success = True
+        await interaction.response.edit_message(content=None, embed=result("Movimentação registrada" if success else "Cadastro não encontrado", result_text, success=success), view=None)
 
 
 def _platoon_names(guild: discord.Guild) -> list[str]:

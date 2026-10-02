@@ -1,18 +1,17 @@
 from __future__ import annotations
 
 import discord
-from discord import ui
 
 from ..content import APH_GUIDE
+from .presentation import card
 
 
-def build_aph_guide_view() -> ui.LayoutView:
-    view = ui.LayoutView(timeout=None)
-    blocks = [ui.TextDisplay(f"# {APH_GUIDE['title']}\n{APH_GUIDE['description']}")]
-    blocks.extend(
-        ui.TextDisplay(f"## {section['name']}\n{section['value']}")
-        for section in APH_GUIDE["sections"]
+def build_aph_guide_embed() -> discord.Embed:
+    embed = card(
+        APH_GUIDE["title"], APH_GUIDE["description"], tone="brand",
+        footer=APH_GUIDE["footer"],
     )
-    blocks[-1].content += f"\n\n-# {APH_GUIDE['footer']}"
-    view.add_item(ui.Container(*blocks, accent_color=discord.Color.from_rgb(139, 26, 26)))
-    return view
+    embed.color = discord.Color.from_rgb(139, 26, 26)
+    for section in APH_GUIDE["sections"]:
+        embed.add_field(name=section["name"], value=section["value"], inline=False)
+    return embed

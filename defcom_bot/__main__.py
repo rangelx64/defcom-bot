@@ -19,6 +19,7 @@ from .discord.server_config import configured_role
 from .discord.server_config import configured_channel
 from .discord.warning_editor import send_warning_editor
 from .discord.member_access import configure_join_access
+from .discord.presentation import card
 
 log = get_logger("defcom_bot")
 BIRTHDAY_TIMEZONE = ZoneInfo("America/Sao_Paulo")
@@ -137,7 +138,8 @@ class DefcomBot(commands.Bot):
                 content = random.choice(BIRTHDAY_MESSAGES).format(mention=member.mention)
                 try:
                     await channel.send(
-                        content,
+                        content=member.mention,
+                        embed=card("Aniversário na DEFCOM", content, tone="brand", timestamp=True),
                         allowed_mentions=discord.AllowedMentions(
                             users=[member], roles=False, everyone=False, replied_user=False,
                         ),
@@ -205,19 +207,19 @@ class DefcomBot(commands.Bot):
             except Exception as error:
                 log.exception("falha na interação %s", interaction.data.get("custom_id"))
                 if not interaction.response.is_done():
-                    await interaction.response.send_message(f"❌ {error}", ephemeral=True)
+                    await interaction.response.send_message(embed=card("Falha na interação", str(error), tone="error"), ephemeral=True)
                 else:
-                    await interaction.followup.send(f"❌ {error}", ephemeral=True)
+                    await interaction.followup.send(embed=card("Falha na interação", str(error), tone="error"), ephemeral=True)
 
     async def on_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         original = getattr(error, "original", error)
         log.error("falha no comando %s", interaction.command.name if interaction.command else "desconhecido",
                   exc_info=(type(original), original, original.__traceback__))
-        message = f"❌ {original}"
+        message = card("Não foi possível concluir", str(original), tone="error")
         if interaction.response.is_done():
-            await interaction.followup.send(message, ephemeral=True)
+            await interaction.followup.send(embed=message, ephemeral=True)
         else:
-            await interaction.response.send_message(message, ephemeral=True)
+            await interaction.response.send_message(embed=message, ephemeral=True)
 
 
 def main():
