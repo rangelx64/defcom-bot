@@ -243,10 +243,22 @@ async def route_button(interaction: discord.Interaction):
 
 async def handle_review(interaction: discord.Interaction, decision: str, user_id: int):
     cfg = application_config()
-    staff_role_ids = {role.id for role in configured_roles(interaction.guild, "staff_roles")}
+    reviewer_roles = configured_roles(interaction.guild, "staff_roles")
+    reviewer_roles.extend(
+        role for key in ("role.global_leader", "role.squad_leader")
+        if (role := configured_role(interaction.guild, key)) is not None
+    )
+    reviewer_role_ids = {role.id for role in reviewer_roles}
     if (interaction.user.id != interaction.guild.owner_id
-            and not any(role.id in staff_role_ids for role in getattr(interaction.user, "roles", ()))):
-        return await interaction.response.send_message(embed=card("Acesso restrito", "Apenas a staff pode avaliar candidaturas.", tone="error"), ephemeral=True)
+            and not any(role.id in reviewer_role_ids for role in getattr(interaction.user, "roles", ()))):
+        return await interaction.response.send_message(
+            embed=card(
+                "Acesso restrito",
+                "Apenas o dono do servidor, a staff configurada, os global leaders ou os squad leaders podem avaliar candidaturas.",
+                tone="error",
+            ),
+            ephemeral=True,
+        )
     record = _application_record(interaction.message.id)
     if record is None or record.status != "pending" or record.user_id != str(user_id):
         return await interaction.response.send_message(embed=card("Candidatura indisponível", "Esta candidatura não existe ou já foi decidida.", tone="warning"), ephemeral=True)
