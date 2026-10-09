@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-import sqlite3
+from datetime import date
 import re
+import sqlite3
 import discord
 from discord import app_commands, ui
 
@@ -9,7 +10,6 @@ from ..content import APPLICATION, WELCOME
 from ..database import database
 from ..log import get_logger
 from ..storage import load_json
-from .member_management import parse_birthday
 from .member_access import configure_operator_access
 from .server_config import configured_channel, configured_role, configured_roles, role_assignment_issue
 from .presentation import card, result
@@ -146,18 +146,20 @@ async def submit_application(interaction: discord.Interaction, fields_cfg: list[
             ephemeral=True,
         )
         return
-    age_and_birthday = answers.get("age_birthday", "")
-    birthday = parse_birthday(age_and_birthday)
-    before_date = re.split(r"\b\d{1,2}\s*[/.-]\s*\d{1,2}\b", age_and_birthday, maxsplit=1)[0]
-    age = re.search(r"\b(\d{1,3})\b", before_date)
-    if not birthday or not age:
+    birth_date = answers.get("birth_date", "").strip()
+    match = re.fullmatch(r"(\d{1,2})/(\d{1,2})/(\d{4})", birth_date)
+    try:
+        day, month, year = map(int, match.groups()) if match else (0, 0, 0)
+        date(year, month, day)
+    except ValueError:
+        match = None
+    if not match:
         await interaction.response.send_message(
-            embed=card("Revise seus dados", "Informe idade e aniversário no formato indicado, por exemplo: `22 anos, aniversário em 17/04`.", tone="warning"),
+            embed=card("Revise a data", "Informe sua data de nascimento no formato **DD/MM/AAAA**, por exemplo: `17/04/2000`.", tone="warning"),
             ephemeral=True,
         )
         return
-    answers["birthday"] = birthday
-    answers["age"] = age.group(1)
+    answers["birthday"] = f"{month:02d}-{day:02d}"
     if find_pending_application(interaction.guild_id, interaction.user.id):
         await interaction.response.send_message(embed=card("Candidatura em análise", "Sua candidatura já está com a staff. Aguarde o retorno antes de enviar outra.", tone="warning"), ephemeral=True)
         return

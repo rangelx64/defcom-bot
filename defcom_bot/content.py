@@ -99,7 +99,7 @@ APPLICATION = {
     "modalTitle": "Candidatura DEFCOM",
     "fields": [
         {"id": "name", "label": "Nome / apelido", "style": "short", "placeholder": "Como te chamamos?"},
-        {"id": "age_birthday", "label": "Idade e aniversário (DD/MM)", "style": "short", "placeholder": "Ex.: 22 anos, aniversário em 17/04"},
+        {"id": "birth_date", "label": "Data de nascimento (DD/MM/AAAA)", "style": "short", "placeholder": "Exemplo: 17/04/2000"},
         {"id": "experience_motivation", "label": "Experiência e motivação", "style": "paragraph", "placeholder": "Conte sua experiência com jogos e por que quer fazer parte da equipe."},
         {"id": "availability", "label": "Disponibilidade", "style": "short", "placeholder": "Dias e horários"},
         {"id": "agreement", "label": "Concordo com os termos", "style": "short", "placeholder": "Digite CONCORDO para confirmar"},
